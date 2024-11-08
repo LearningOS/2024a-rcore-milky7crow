@@ -171,3 +171,14 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     }
     v
 }
+
+/// write to translated byte buffer
+pub fn write_byte_buffer(token: usize, ptr: *mut u8, data: &[u8]) {
+    let v = translated_byte_buffer(token, ptr, data.len());
+    let data_start = 0;
+    for block in v {
+        for (src, dst) in data[data_start..data_start+block.len()].iter().zip(block.iter_mut()) {
+            *dst = *src;
+        }
+    }
+}

@@ -1,9 +1,11 @@
 //! Process management syscalls
 use crate::{
     config::MAX_SYSCALL_NUM,
+    mm::write_byte_buffer,
     task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
     },
+    timer::get_time_us,
 };
 
 #[repr(C)]
@@ -14,6 +16,7 @@ pub struct TimeVal {
 }
 
 /// Task information
+#[repr(C)]
 #[allow(dead_code)]
 pub struct TaskInfo {
     /// Task status in it's life cycle
@@ -43,7 +46,15 @@ pub fn sys_yield() -> isize {
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    -1
+    let us = get_time_us();
+    let sec = us / 1_000_000;
+    let usec = us % 1_000_000;
+    let sec = sec.to_be_bytes();
+    let usec = usec.to_be_bytes();
+    let data = [sec, usec].concat();
+    
+    write_byte_buffer(current_user_token(), _ts as *mut u8, &data);
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
