@@ -1,11 +1,13 @@
 //! Process management syscalls
+use core::mem::size_of;
+
 use crate::{
     config::MAX_SYSCALL_NUM,
     mm::write_byte_buffer,
     task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
+        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, TASK_MANAGER
     },
-    timer::get_time_us,
+    timer::{get_time_ms, get_time_us},
 };
 
 #[repr(C)]
@@ -16,7 +18,6 @@ pub struct TimeVal {
 }
 
 /// Task information
-#[repr(C)]
 #[allow(dead_code)]
 pub struct TaskInfo {
     /// Task status in it's life cycle
@@ -47,13 +48,12 @@ pub fn sys_yield() -> isize {
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
     let us = get_time_us();
-    let sec = us / 1_000_000;
-    let usec = us % 1_000_000;
-    let sec = sec.to_be_bytes();
-    let usec = usec.to_be_bytes();
-    let data = [sec, usec].concat();
+    let ts = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
     
-    write_byte_buffer(current_user_token(), _ts as *mut u8, &data);
+    write_byte_buffer(current_user_token(), _ts as *mut u8, &ts as *const _ as *const u8, size_of::<TimeVal>());
     0
 }
 
@@ -62,7 +62,19 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+
+    let mut counter = [0u32; MAX_SYSCALL_NUM];
+    for id in 0..MAX_SYSCALL_NUM {
+        counter[id] = TASK_MANAGER.get_syscall_count(id);
+    }
+    let ti = TaskInfo {
+        status: TASK_MANAGER.get_status(),
+        syscall_times: counter,
+        time: get_time_ms() - TASK_MANAGER.get_start_time(),
+    };
+
+    write_byte_buffer(current_user_token(), _ti as *mut u8, &ti as *const _ as *const u8, size_of::<TaskInfo>());
+    0
 }
 
 // YOUR JOB: Implement mmap.
