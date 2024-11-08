@@ -2,12 +2,9 @@
 use core::mem::size_of;
 
 use crate::{
-    config::MAX_SYSCALL_NUM,
-    mm::write_byte_buffer,
-    task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, TASK_MANAGER
-    },
-    timer::{get_time_ms, get_time_us},
+    config::{MAX_SYSCALL_NUM, PAGE_SIZE}, mm::{write_byte_buffer, MapPermission}, task::{
+        change_program_brk, current_user_token, exit_current_and_run_next, map_memory, suspend_current_and_run_next, TaskStatus, TASK_MANAGER
+    }, timer::{get_time_ms, get_time_us}
 };
 
 #[repr(C)]
@@ -61,8 +58,6 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-
     let mut counter = [0u32; MAX_SYSCALL_NUM];
     for id in 0..MAX_SYSCALL_NUM {
         counter[id] = TASK_MANAGER.get_syscall_count(id);
@@ -78,14 +73,56 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(_start: usize, _len: usize, _prot: usize) -> isize {
+    // start not page aligned
+    if _start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    // unused prot bits are not zero
+    if _prot & !0x7 != 0 {
+        return -1;
+    }
+    // no perm
+    if _prot & 0x7 == 0 {
+        return -1;
+    }
+    // mapped
+    //let page_count = (_len + PAGE_SIZE - 1) / PAGE_SIZE;
+    //let mut vpn = VirtAddr::from(_start).floor();
+    //for _i in 0..page_count {
+    //    if contains_mapping(vpn) {
+    //        return -1;
+    //    }
+    //    vpn.0 += 1;
+    //}
+
+    // out of mem
+
+    let mut permission = MapPermission::U;
+    if !(_prot & (1 << 0) == 0) {
+        permission |= MapPermission::R;
+    }
+    if !(_prot & (1 << 1) == 0) {
+        permission |= MapPermission::W;
+    }
+    if !(_prot & (1 << 2) == 0) {
+        permission |= MapPermission::X;
+    }
+
+    //let _end = (_start + _len) & !((1 << PAGE_SIZE_BITS) - 1);
+    let _end = _start + _len;
+    map_memory(
+        _start.into(),
+        _end.into(),
+        //MapPermission::U | MapPermission::R | MapPermission::W | MapPermission::X
+        permission
+        );
+    0
 }
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
+
     -1
 }
 /// change data segment size

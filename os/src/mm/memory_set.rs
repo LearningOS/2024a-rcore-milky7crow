@@ -51,6 +51,15 @@ impl MemorySet {
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
+    /// whether this memory set contains the va
+    pub fn contains(&self, vpn: VirtPageNum) -> bool {
+        for area in &self.areas {
+            if area.vpn_range.get_start() <= vpn || area.vpn_range.get_end() >= vpn {
+                return true;
+            }
+        }
+        false
+    }
     /// Assume that no conflicts.
     pub fn insert_framed_area(
         &mut self,
@@ -62,6 +71,18 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+    /// assume that no conflicts
+    pub fn erase_framed_area(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+    ) {
+        self.pop(MapArea::new(start_va, end_va, MapType::Framed, MapPermission::empty()));
+    }
+    fn pop(&mut self, mut map_area: MapArea) {
+        map_area.unmap(&mut self.page_table);
+        self.areas.retain(|x| x.vpn_range.get_start() != map_area.vpn_range.get_start());
     }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);

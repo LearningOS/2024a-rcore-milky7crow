@@ -18,6 +18,7 @@ use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
 use crate::trap::TrapContext;
+use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
@@ -186,6 +187,32 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].start_time
     }
+
+    fn map_memory(
+        &self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    ) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission);
+    }
+
+    fn contains_mapping(&self, vpn: VirtPageNum) -> bool {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].memory_set.contains(vpn)
+    }
+
+    fn unmap_memory(
+        &self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+    ) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.erase_framed_area(start_va, end_va);
+    }
 }
 
 /// Run the first task in task list.
@@ -234,4 +261,26 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// map memory
+pub fn map_memory(
+    start_va: VirtAddr,
+    end_va: VirtAddr,
+    permission: MapPermission,
+) {
+    TASK_MANAGER.map_memory(start_va, end_va, permission);
+}
+
+/// contains mapping
+pub fn contains_mapping(vpn: VirtPageNum) -> bool {
+    TASK_MANAGER.contains_mapping(vpn)
+}
+
+/// unmap memory
+pub fn unmap_memory(
+    start_va: VirtAddr,
+    end_va: VirtAddr,
+) {
+    TASK_MANAGER.unmap_memory(start_va, end_va);
 }
