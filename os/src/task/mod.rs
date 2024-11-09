@@ -18,7 +18,7 @@ use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
 use crate::trap::TrapContext;
-use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
+use crate::mm::{MapPermission, VirtPageNum, VirtAddr};
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
@@ -211,7 +211,7 @@ impl TaskManager {
     ) {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        inner.tasks[current].memory_set.erase_framed_area(start_va, end_va);
+        inner.tasks[current].memory_set.erase_area(start_va, end_va);
     }
 }
 

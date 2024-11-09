@@ -51,10 +51,10 @@ impl MemorySet {
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
-    /// whether this memory set contains the va
+    /// whether this memory set contains the vpn
     pub fn contains(&self, vpn: VirtPageNum) -> bool {
         for area in &self.areas {
-            if area.vpn_range.get_start() <= vpn || area.vpn_range.get_end() >= vpn {
+            if area.vpn_range.get_start() <= vpn && area.vpn_range.get_end() > vpn {
                 return true;
             }
         }
@@ -72,11 +72,11 @@ impl MemorySet {
             None,
         );
     }
-    /// assume that no conflicts
-    pub fn erase_framed_area(
+    /// assume no overlapping
+    pub fn erase_area(
         &mut self,
         start_va: VirtAddr,
-        end_va: VirtAddr,
+        end_va: VirtAddr
     ) {
         self.pop(MapArea::new(start_va, end_va, MapType::Framed, MapPermission::empty()));
     }

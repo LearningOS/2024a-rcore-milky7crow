@@ -2,8 +2,8 @@
 use core::mem::size_of;
 
 use crate::{
-    config::{MAX_SYSCALL_NUM, PAGE_SIZE}, mm::{write_byte_buffer, MapPermission}, task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, map_memory, suspend_current_and_run_next, TaskStatus, TASK_MANAGER
+    config::{MAX_SYSCALL_NUM, PAGE_SIZE}, mm::{write_byte_buffer, MapPermission, VirtAddr}, task::{
+        change_program_brk, contains_mapping, current_user_token, exit_current_and_run_next, map_memory, suspend_current_and_run_next, unmap_memory, TaskStatus, TASK_MANAGER
     }, timer::{get_time_ms, get_time_us}
 };
 
@@ -87,16 +87,19 @@ pub fn sys_mmap(_start: usize, _len: usize, _prot: usize) -> isize {
         return -1;
     }
     // mapped
-    //let page_count = (_len + PAGE_SIZE - 1) / PAGE_SIZE;
-    //let mut vpn = VirtAddr::from(_start).floor();
-    //for _i in 0..page_count {
-    //    if contains_mapping(vpn) {
-    //        return -1;
-    //    }
-    //    vpn.0 += 1;
-    //}
+    let page_count = (_len + PAGE_SIZE - 1) / PAGE_SIZE;
+    let start_vpn = VirtAddr::from(_start).floor();
+    let mut end_vpn = start_vpn;
+    for _i in 0..page_count {
+        if contains_mapping(end_vpn) {
+            return -1;
+        }
+        end_vpn.0 += 1;
+    }
+    end_vpn.0 -= 1;
 
-    // out of mem
+
+    // TODO: out of mem
 
     let mut permission = MapPermission::U;
     if !(_prot & (1 << 0) == 0) {
@@ -109,12 +112,10 @@ pub fn sys_mmap(_start: usize, _len: usize, _prot: usize) -> isize {
         permission |= MapPermission::X;
     }
 
-    //let _end = (_start + _len) & !((1 << PAGE_SIZE_BITS) - 1);
     let _end = _start + _len;
     map_memory(
         _start.into(),
         _end.into(),
-        //MapPermission::U | MapPermission::R | MapPermission::W | MapPermission::X
         permission
         );
     0
@@ -122,8 +123,31 @@ pub fn sys_mmap(_start: usize, _len: usize, _prot: usize) -> isize {
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+    // start not page aligned
+    if _start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    let _end = _start + _len - 1;
+    //let _end = (_start + _len - PAGE_SIZE).max(_start);
 
-    -1
+    // unmapped
+    let page_count = (_len + PAGE_SIZE - 1) / PAGE_SIZE;
+    let start_vpn = VirtAddr::from(_start).floor();
+    let mut end_vpn = start_vpn;
+    for _i in 0..page_count {
+        if !contains_mapping(end_vpn) {
+            return -1;
+        }
+        end_vpn.0 += 1;
+    }
+    end_vpn.0 -= 1;
+
+    let _end = _start + _len;
+    unmap_memory(
+        _start.into(),
+        _end.into(),
+        );
+    0
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
